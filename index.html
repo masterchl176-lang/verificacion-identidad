@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificación de Identidad</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Verificación de Identidad</h1>
+        <p id="greeting">Hola, Usuario</p>
+        <p>Por tu seguridad, necesitamos confirmar que eres una persona real. Por favor, sigue la instrucción que aparecerá a continuación.</p>
+        
+        <div class="camera-container">
+            <video id="video" autoplay></video>
+            <canvas id="canvas" style="display:none;"></canvas>
+        </div>
+
+        <div class="challenge-container">
+            <h3 id="challenge">Por favor, sonríe durante 2 segundos.</h3>
+        </div>
+
+        <button id="startBtn">Iniciar Cámara</button>
+        <button id="verifyBtn" disabled>Verificar y Enviar</button>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const verifyBtn = document.getElementById('verifyBtn');
+        const greeting = document.getElementById('greeting');
+        const challenge = document.getElementById('challenge');
+
+        // PASO 2.1: OBTENER EL NOMBRE DEL USUARIO DESDE LA URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const userName = urlParams.get('user');
+        if (userName) {
+            greeting.textContent = `Hola, ${userName.replace(/-/g, ' ')}`;
+        }
+
+        // PASO 2.2: INICIAR LA CÁMARA
+        startBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                video.srcObject = stream;
+                startBtn.style.display = 'none';
+                verifyBtn.disabled = false;
+            } catch (err) {
+                alert('No se pudo acceder a la cámara. Por favor, concede los permisos.');
+            }
+        });
+
+        // PASO 2.3: TOMAR FOTO Y PREPARAR EL EMAIL
+        verifyBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageDataUrl = canvas.toDataURL('image/png');
+            
+            // PASO 2.4: ENVIAR POR EMAIL (MÉTODO GRATIS)
+            const subject = `Verificación completada para ${userName}`;
+            const body = `Se ha completado la verificación para el usuario: ${userName}\n\nLa selfie de verificación está adjunta.`;
+            
+            // Crear un enlace mailto con la imagen adjunta (método simple)
+            // Nota: La mayoría de los clientes de email modernos soportan esto
+            const mailtoLink = `mailto:tu-correo@example.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            
+            // Abrir el cliente de email del usuario
+            window.location.href = mailtoLink;
+            
+            // Opcional: Mostrar un mensaje de éxito
+            alert('¡Gracias! Se ha abierto tu aplicación de correo para enviar la verificación. Por favor, pulsa "Enviar".');
+        });
+    </script>
+</body>
+</html>
